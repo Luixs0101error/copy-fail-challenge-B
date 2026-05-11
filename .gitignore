@@ -1,0 +1,7 @@
+kernel/linux/
+kernel/busybox/
+kernel/initramfs/
+kernel/build/
+__pycache__/
+*.pyc
+*.qcow2

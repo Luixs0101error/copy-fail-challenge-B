@@ -1,0 +1,35 @@
+{
+  "name": "Copy Fail — CVE-2026-31431 Lab (v2)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+
+  "runArgs": [
+    "--privileged"
+  ],
+  "capAdd": ["SYS_ADMIN", "NET_ADMIN"],
+
+  "remoteEnv": {
+    "KERNEL_VERSION": "6.12",
+    "KERNEL_TAG": "v6.12",
+    "VULN_COMMIT": "72548b093ee3",
+    "FIX_COMMIT": "a664bf3d603d",
+    "KERNEL_REPO": "DOCENTE-USUARIO/REPO-TEMPLATE",
+    "KERNEL_RELEASE_TAG": "kernel-v6.12-vuln"
+  },
+
+  "postCreateCommand": "bash ${containerWorkspaceFolder}/scripts/00_welcome.sh",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

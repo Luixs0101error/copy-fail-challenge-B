@@ -1,0 +1,134 @@
+name: "Build Vulnerable Kernel"
+
+on:
+  workflow_dispatch:
+    inputs:
+      kernel_tag:
+        description: "Tag del kernel Linux"
+        required: true
+        default: "v6.12"
+      release_tag:
+        description: "Tag del release"
+        required: true
+        default: "kernel-v6.12-vuln"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Instalar dependencias de compilación
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            git make gcc flex bison bc \
+            libncurses-dev libelf-dev libssl-dev \
+            cpio pahole dwarves zstd
+
+      - name: Clonar kernel
+        run: |
+          git clone --depth 1 --branch "${{ github.event.inputs.kernel_tag }}" \
+            https://github.com/torvalds/linux.git linux-src
+          echo "KERNEL_COMMIT=$(cd linux-src && git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Configurar kernel
+        working-directory: linux-src
+        run: |
+          make tinyconfig
+
+          # Arranque
+          ./scripts/config --enable 64BIT
+          ./scripts/config --enable SERIAL_8250
+          ./scripts/config --enable SERIAL_8250_CONSOLE
+          ./scripts/config --enable TTY
+          ./scripts/config --enable PRINTK
+          ./scripts/config --enable EARLY_PRINTK
+
+          # CRÍTICO: ejecución de binarios y scripts
+          ./scripts/config --enable BINFMT_ELF
+          ./scripts/config --enable BINFMT_SCRIPT
+
+          # initramfs
+          ./scripts/config --enable BLK_DEV_INITRD
+          ./scripts/config --enable INITRAMFS_SOURCE
+          ./scripts/config --enable RD_GZIP
+          ./scripts/config --enable TMPFS
+
+          # Filesystems
+          ./scripts/config --enable PROC_FS
+          ./scripts/config --enable SYSFS
+          ./scripts/config --enable DEVTMPFS
+          ./scripts/config --enable DEVTMPFS_MOUNT
+
+          # Red (AF_ALG)
+          ./scripts/config --enable NET
+          ./scripts/config --enable UNIX
+          ./scripts/config --enable INET
+
+          # Crypto vulnerable
+          ./scripts/config --enable CRYPTO
+          ./scripts/config --enable CRYPTO_AEAD
+          ./scripts/config --enable CRYPTO_AUTHENC
+          ./scripts/config --enable CRYPTO_USER_API
+          ./scripts/config --enable CRYPTO_USER_API_AEAD
+          ./scripts/config --enable CRYPTO_USER_API_SKCIPHER
+          ./scripts/config --enable CRYPTO_AUTHENCESN
+          ./scripts/config --enable CRYPTO_AES
+          ./scripts/config --enable CRYPTO_CBC
+          ./scripts/config --enable CRYPTO_HMAC
+          ./scripts/config --enable CRYPTO_SHA256
+
+          # Usuarios
+          ./scripts/config --enable MULTIUSER
+
+          make olddefconfig
+
+          # Verificación tolerante (no rompe el job si falta)
+          echo "── Opciones críticas ──"
+          for OPT in BINFMT_ELF BINFMT_SCRIPT RD_GZIP \
+                     CRYPTO_USER_API_AEAD CRYPTO_AUTHENCESN; do
+            grep "CONFIG_${OPT}=y" .config \
+              && echo "✓ $OPT" \
+              || echo "⚠ $OPT no habilitado"
+          done
+
+      - name: Compilar bzImage
+        working-directory: linux-src
+        run: |
+          make -j$(nproc) bzImage 2>&1 | tail -10
+          ls -lh arch/x86/boot/bzImage
+
+      - name: Preparar assets del release
+        run: |
+          mkdir -p release-assets
+          cp linux-src/arch/x86/boot/bzImage release-assets/bzImage_vuln
+          cp linux-src/.config release-assets/kernel.config
+
+          cat > release-assets/kernel-manifest.json << EOF
+          {
+            "kernel_tag": "${{ github.event.inputs.kernel_tag }}",
+            "kernel_commit": "${KERNEL_COMMIT}",
+            "cve": "CVE-2026-31431",
+            "sha256": "$(sha256sum release-assets/bzImage_vuln | cut -d' ' -f1)",
+            "built_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+
+      - name: Crear Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "${{ github.event.inputs.release_tag }}"
+          name: "Kernel Vulnerable ${{ github.event.inputs.kernel_tag }}"
+          body: |
+            Kernel Linux ${{ github.event.inputs.kernel_tag }} vulnerable a CVE-2026-31431.
+            Uso exclusivo en laboratorio controlado.
+          files: |
+            release-assets/bzImage_vuln
+            release-assets/kernel.config
+            release-assets/kernel-manifest.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
