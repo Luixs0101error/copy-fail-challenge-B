@@ -1,0 +1,24 @@
+=== HITO 3: MITIGACION TEMPORAL ===
+Fecha: Thu May 14 23:48:57 UTC 2026
+Hostname: copy-fail-LUIS
+Kernel: 6.12.0
+Identidad actual: uid=0(root) gid=0(root) groups=1001(student)
+Usuario actual: root
+
+=== CONFIG RELEVANTE ===
+CONFIG_CRYPTO_AEAD=y
+CONFIG_CRYPTO_AEAD2=y
+CONFIG_CRYPTO_AUTHENC=y
+CONFIG_CRYPTO_USER_API_AEAD=y
+
+=== MODULOS RELACIONADOS ===
+No se pudo listar /proc/modules o no aparecen modulos alg
+
+=== INTENTO DE REMOVER algif_aead ===
+rmmod: remove 'algif_aead': Function not implemented
+
+=== MITIGACION TEMPORAL APLICADA ===
+----------    1 root     root           758 May 14 23:48 /home/student/copy_fail_exp.py
+
+=== RESULTADO ===
+El exploit queda inaccesible para student como mitigacion temporal.
