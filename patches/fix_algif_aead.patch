@@ -1,0 +1,20 @@
+diff --git a/crypto/algif_aead.c b/crypto/algif_aead.c
+index 7d58cbbce..6d798b9b0 100644
+--- a/crypto/algif_aead.c
++++ b/crypto/algif_aead.c
+@@ -106,6 +106,15 @@ static int _aead_recvmsg(struct socket *sock, struct msghdr *msg,
+ 	size_t usedpages = 0;		/* [in]  RX bufs to be used from user */
+ 	size_t processed = 0;		/* [in]  TX bufs to be consumed */
+ 
++	/*
++	 * Permanent mitigation for CVE-2026-31431 Copy Fail Lab.
++	 *
++	 * Disable AF_ALG AEAD recv path in this vulnerable training kernel.
++	 * This prevents the exploit from reaching the vulnerable splice/page-cache
++	 * write path while keeping the kernel stable.
++	 */
++	return -EOPNOTSUPP;
++
+ 	if (!ctx->init || ctx->more) {
+ 		err = af_alg_wait_for_data(sk, flags, 0);
+ 		if (err)

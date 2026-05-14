@@ -1,0 +1,25 @@
+=== HITO 4: PARCHE PERMANENTE APLICADO ===
+Fecha: Thu May 14 23:57:13 UTC 2026
+Hostname: copy-fail-LUIS
+Kernel: 6.12.0-dirty
+
+=== ESTADO INICIAL ===
+Identidad inicial: uid=1001(student) gid=1001(student) groups=1001(student)
+Usuario inicial: student
+
+=== TARGET /usr/bin/su ===
+-rwsr-xr-x    1 root     root         55680 May 14 23:57 /usr/bin/su
+
+=== EXPLOIT ===
+-rwxr-xr-x    1 student  student        758 May 14 23:57 /home/student/copy_fail_exp.py
+
+=== EJECUCION DEL EXPLOIT POST-PARCHE ===
+Comando ejecutado: python3 /home/student/copy_fail_exp.py
+Resultado observado: su: Authentication failure
+
+=== IDENTIDAD FINAL ===
+uid=1001(student) gid=1001(student) groups=1001(student)
+student
+
+=== RESULTADO ===
+El exploit fue neutralizado. El usuario permanece como student y no obtiene root.
