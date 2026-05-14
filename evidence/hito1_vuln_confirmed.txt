@@ -1,0 +1,35 @@
+=== HITO 1: KERNEL VULNERABLE CONFIRMADO ===
+Fecha: Thu May 14 23:21:59 UTC 2026
+Hostname: copy-fail-LUIS
+Kernel: 6.12.0
+Identidad: uid=1001(student) gid=1001(student) groups=1001(student)
+Usuario: student
+
+=== CONFIG RELEVANTE ===
+CONFIG_IKCONFIG=y
+CONFIG_IKCONFIG_PROC=y
+CONFIG_CRYPTO_AEAD=y
+CONFIG_CRYPTO_AEAD2=y
+CONFIG_CRYPTO_AUTHENC=y
+CONFIG_CRYPTO_USER_API=y
+# CONFIG_CRYPTO_USER_API_HASH is not set
+CONFIG_CRYPTO_USER_API_SKCIPHER=y
+# CONFIG_CRYPTO_USER_API_RNG is not set
+CONFIG_CRYPTO_USER_API_AEAD=y
+CONFIG_CRYPTO_USER_API_ENABLE_OBSOLETE=y
+
+=== CRYPTO DISPONIBLE ===
+name         : aes
+driver       : aes-generic
+name         : sha224
+driver       : sha224-generic
+name         : sha256
+driver       : sha256-generic
+name         : ecb(cipher_null)
+driver       : ecb-cipher_null
+name         : digest_null
+driver       : digest_null-generic
+name         : compress_null
+driver       : compress_null-generic
+name         : cipher_null
+driver       : cipher_null-generic
