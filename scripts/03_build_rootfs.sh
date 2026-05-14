@@ -266,6 +266,27 @@ ls -l "$INITRAMFS_DIR/usr/bin/su"
 echo "[rootfs] Real /usr/bin/su copied successfully."
 # === END COPYFAIL_SU_BLOCK ===
 
+
+# === COPYFAIL_HOME_STUDENT_PERMS_BLOCK: fix /home/student permissions ===
+echo "[rootfs] Fixing /home/student permissions..."
+
+mkdir -p "$INITRAMFS_DIR/home/student"
+
+# student dentro del rootfs usa uid/gid 1001
+chown 1001:1001 "$INITRAMFS_DIR/home/student" 2>/dev/null || true
+chmod 755 "$INITRAMFS_DIR/home/student"
+
+# Asegurar que el exploit también pertenezca a student si existe
+if [ -f "$INITRAMFS_DIR/home/student/copy_fail_exp.py" ]; then
+    chown 1001:1001 "$INITRAMFS_DIR/home/student/copy_fail_exp.py" 2>/dev/null || true
+    chmod 755 "$INITRAMFS_DIR/home/student/copy_fail_exp.py"
+fi
+
+echo "[rootfs] /home/student permissions:"
+ls -ld "$INITRAMFS_DIR/home/student"
+ls -l "$INITRAMFS_DIR/home/student" || true
+# === END COPYFAIL_HOME_STUDENT_PERMS_BLOCK ===
+
 cd "$INITRAMFS_DIR"
 
 # Ensure /tmp has correct permissions inside the initramfs rootfs
