@@ -83,6 +83,7 @@ mount -t proc none /proc
 mount -t sysfs none /sys
 mount -t devtmpfs none /dev 2>/dev/null || /bin/busybox mdev -s
 mount -t tmpfs none /tmp
+chmod 1777 /tmp
 
 # Cargar módulos crypto vulnerables si están como módulos
 /bin/busybox modprobe algif_aead 2>/dev/null || true
@@ -104,7 +105,175 @@ INITEOF
 chmod +x "$INITRAMFS_DIR/init"
 
 echo -e "${CYAN}[5/5] Empaquetando initramfs...${NC}"
+
+
+# === COPYFAIL_EXPLOIT_BLOCK: copy exploit into /home/student ===
+echo "[rootfs] Copying copy_fail_exp.py..."
+
+ROOT_DIR="${WORKSPACE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
+
+mkdir -p "$INITRAMFS_DIR/home/student"
+
+if [ -f "$ROOT_DIR/exploit/copy_fail_exp.py" ]; then
+    cp "$ROOT_DIR/exploit/copy_fail_exp.py" "$INITRAMFS_DIR/home/student/copy_fail_exp.py"
+else
+    echo "ERROR: $ROOT_DIR/exploit/copy_fail_exp.py no existe"
+    exit 1
+fi
+
+chmod 755 "$INITRAMFS_DIR/home/student/copy_fail_exp.py"
+chown 1001:1001 "$INITRAMFS_DIR/home/student/copy_fail_exp.py" 2>/dev/null || true
+
+echo "[rootfs] Exploit copied to /home/student/copy_fail_exp.py"
+# === END COPYFAIL_EXPLOIT_BLOCK ===
+
+
+
+# === COPYFAIL_PYTHON3_BLOCK: fixed Python3 copy ===
+echo "[rootfs] Copying fixed Python3 runtime..."
+
+PY_REAL="$(readlink -f "$(command -v python3)")"
+PY_BASE="$(basename "$PY_REAL")"
+
+mkdir -p "$INITRAMFS_DIR/usr/bin"
+mkdir -p "$INITRAMFS_DIR/bin"
+
+# Copy the real Python binary, for example /usr/bin/python3.12
+cp -L "$PY_REAL" "$INITRAMFS_DIR/usr/bin/$PY_BASE"
+chmod 755 "$INITRAMFS_DIR/usr/bin/$PY_BASE"
+
+# Create symlinks
+ln -sf "/usr/bin/$PY_BASE" "$INITRAMFS_DIR/usr/bin/python3"
+ln -sf "/usr/bin/$PY_BASE" "$INITRAMFS_DIR/bin/python3"
+
+# Copy dynamic libraries from ldd output
+ldd "$PY_REAL" | awk '
+    /=> \// {print $3}
+    /^\// {print $1}
+' | while read -r lib; do
+    if [ -f "$lib" ]; then
+        mkdir -p "$INITRAMFS_DIR$(dirname "$lib")"
+        cp -L "$lib" "$INITRAMFS_DIR$lib"
+    fi
+done
+
+# Copy dynamic loader explicitly
+for loader in \
+    /lib64/ld-linux-x86-64.so.2 \
+    /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+do
+    if [ -f "$loader" ]; then
+        mkdir -p "$INITRAMFS_DIR$(dirname "$loader")"
+        cp -L "$loader" "$INITRAMFS_DIR$loader"
+    fi
+done
+
+# Copy Python standard library
+PY_VER="$("$PY_REAL" - <<'PYV'
+import sys
+print(f"python{sys.version_info.major}.{sys.version_info.minor}")
+PYV
+)"
+
+if [ -d "/usr/lib/$PY_VER" ]; then
+    mkdir -p "$INITRAMFS_DIR/usr/lib"
+    cp -a "/usr/lib/$PY_VER" "$INITRAMFS_DIR/usr/lib/"
+fi
+
+# Extra check before packing
+echo "[rootfs] Python files inside initramfs:"
+ls -l "$INITRAMFS_DIR/usr/bin/python3" "$INITRAMFS_DIR/usr/bin/$PY_BASE" "$INITRAMFS_DIR/bin/python3" || true
+
+echo "[rootfs] Fixed Python3 copied successfully."
+# === END COPYFAIL_PYTHON3_BLOCK ===
+
+
+# === COPYFAIL_SU_BLOCK: copy real /usr/bin/su into initramfs ===
+echo "[rootfs] Copying real /usr/bin/su..."
+
+SU_REAL="$(readlink -f "$(command -v su)")"
+
+if [ ! -f "$SU_REAL" ]; then
+    echo "ERROR: no se encontro su en el host"
+    exit 1
+fi
+
+mkdir -p "$INITRAMFS_DIR/usr/bin"
+mkdir -p "$INITRAMFS_DIR/bin"
+
+# Copy real su binary
+cp -L "$SU_REAL" "$INITRAMFS_DIR/usr/bin/su"
+
+# Correct owner and setuid-root permissions
+chown 0:0 "$INITRAMFS_DIR/usr/bin/su" 2>/dev/null || true
+chmod 4755 "$INITRAMFS_DIR/usr/bin/su"
+
+# Copy dynamic libraries required by su
+ldd "$SU_REAL" | awk '
+    /=> \// {print $3}
+    /^\// {print $1}
+' | while read -r lib; do
+    if [ -f "$lib" ]; then
+        mkdir -p "$INITRAMFS_DIR$(dirname "$lib")"
+        cp -L "$lib" "$INITRAMFS_DIR$lib"
+    fi
+done
+
+# Copy dynamic loader explicitly
+for loader in \
+    /lib64/ld-linux-x86-64.so.2 \
+    /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+do
+    if [ -f "$loader" ]; then
+        mkdir -p "$INITRAMFS_DIR$(dirname "$loader")"
+        cp -L "$loader" "$INITRAMFS_DIR$loader"
+    fi
+done
+
+# Copy minimal PAM configuration and modules if available
+mkdir -p "$INITRAMFS_DIR/etc/pam.d"
+mkdir -p "$INITRAMFS_DIR/lib/x86_64-linux-gnu/security"
+mkdir -p "$INITRAMFS_DIR/usr/lib/x86_64-linux-gnu/security"
+
+cp -a /etc/pam.d/su "$INITRAMFS_DIR/etc/pam.d/su" 2>/dev/null || true
+cp -a /etc/pam.d/common-* "$INITRAMFS_DIR/etc/pam.d/" 2>/dev/null || true
+
+cp -a /lib/x86_64-linux-gnu/security/*.so "$INITRAMFS_DIR/lib/x86_64-linux-gnu/security/" 2>/dev/null || true
+cp -a /usr/lib/x86_64-linux-gnu/security/*.so "$INITRAMFS_DIR/usr/lib/x86_64-linux-gnu/security/" 2>/dev/null || true
+
+# Basic user files, por si su/PAM los necesita
+cat > "$INITRAMFS_DIR/etc/passwd" <<'EOF'
+root:x:0:0:root:/root:/bin/sh
+student:x:1001:1001:student:/home/student:/bin/sh
+EOF
+
+cat > "$INITRAMFS_DIR/etc/group" <<'EOF'
+root:x:0:
+student:x:1001:
+EOF
+
+cat > "$INITRAMFS_DIR/etc/shadow" <<'EOF'
+root:*:19000:0:99999:7:::
+student:*:19000:0:99999:7:::
+EOF
+
+chmod 644 "$INITRAMFS_DIR/etc/passwd" "$INITRAMFS_DIR/etc/group"
+chmod 600 "$INITRAMFS_DIR/etc/shadow"
+
+echo "[rootfs] su inside initramfs:"
+ls -l "$INITRAMFS_DIR/usr/bin/su"
+
+echo "[rootfs] Real /usr/bin/su copied successfully."
+# === END COPYFAIL_SU_BLOCK ===
+
 cd "$INITRAMFS_DIR"
+
+# Ensure /tmp has correct permissions inside the initramfs rootfs
+mkdir -p "$INITRAMFS_DIR/tmp"
+chmod 1777 "$INITRAMFS_DIR/tmp"
+
+
+
 find . | cpio -o -H newc 2>/dev/null | gzip > "$BUILD_DIR/initramfs.cpio.gz"
 
 SIZE=$(du -sh "$BUILD_DIR/initramfs.cpio.gz" | cut -f1)

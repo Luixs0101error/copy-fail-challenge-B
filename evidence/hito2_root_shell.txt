@@ -1,0 +1,15 @@
+=== HITO 2: EXPLOIT EXITOSO ===
+Fecha: Thu May 14 23:44:36 UTC 2026
+Hostname: copy-fail-LUIS
+Kernel: 6.12.0
+Identidad POST-exploit: uid=0(root) gid=0(root) groups=1001(student)
+Usuario POST-exploit: root
+
+=== EXPLOIT ===
+-rwxr-xr-x    1 student  student        758 May 14 23:44 /home/student/copy_fail_exp.py
+
+=== TARGET /usr/bin/su ===
+-rwsr-xr-x    1 root     root         55680 May 14 23:44 /usr/bin/su
+
+=== RESULTADO ===
+Se obtuvo shell root desde el usuario student.
